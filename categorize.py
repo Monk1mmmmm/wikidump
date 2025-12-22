@@ -99,7 +99,6 @@ def get_translation(page, lang):
         item = pywikibot.ItemPage.fromPage(page)
     except pywikibot.exceptions.NoPageError as e:
         print('Not found', page)
-        raise
         return
     sl = item.sitelinks.get(lang+'wiki')
     if sl:

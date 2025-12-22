@@ -14,6 +14,7 @@ import itertools
 from collections import defaultdict
 import random
 import sys
+import time
 
 import pywikibot
 import mwparserfromhell
@@ -21,7 +22,7 @@ from tqdm import tqdm
 
 from constants import LANGUAGE_CODES, BOT_NAME
 
-MAX_SUPPORTED_TEXT_LEN = 300000
+MAX_SUPPORTED_TEXT_LEN = 400000
 
 
 def main():
@@ -33,8 +34,8 @@ def main():
     robot.last_problems_update = datetime.now() - PROBLEMS_UPDATE_PERIOD + timedelta(hours=delay)
 
     robot.run_forever()
-    title = 'Гауптман з Копеніка'
-    # robot.process(pywikibot.Page(SITE, title))
+    title = 'Користувач:Bunyk/Чернетка'
+    robot.process(pywikibot.Page(SITE, title))
 
 
 REPLACE_SUMMARY = "[[User:PavloChemBot/Iw|автоматична заміна]] {{[[Шаблон:Не перекладено|Не перекладено]]}} вікі-посиланнями на перекладені статті"
@@ -221,6 +222,7 @@ def order_backlog(last, pages):
     diff = titles.difference(last)
     print(len(diff), "new pages:", ", ".join(diff))
     backlog = list(titles | last)
+    print(f'backlog had {len(last)} pages, +{len(diff)}, now has {len(backlog)}')
     backlog.sort()
     return backlog
 
@@ -282,14 +284,23 @@ class IwBot:
             with tqdm(total=len(self.backlog), initial=self.cursor) as pbar:
                 while self.cursor < len(self.backlog):
                     title = self.backlog[self.cursor]
-                    self.process_step(title)
+                    pbar.set_postfix(page=f'{title:_<40.40s}')
                     self.cursor += 1
                     pbar.update(1)
-                    pbar.set_postfix(page=f'{title:_<40.40s}')
+                    self.process_step(title)
                     self.process_problems()  # maybe
             self.publish_stats()
             self.reset()
             return True
+        except (
+            pywikibot.exceptions.MaxlagTimeoutError,
+            pywikibot.exceptions.APIMWError,
+            pywikibot.exceptions.ServerError
+        ) as err:
+            print('%s, sleeping for 10 minutes' % err)
+            time.sleep(10 * 60.0)
+            return True # retry
+
         except KeyboardInterrupt:
             print("Saving work")
             self.save()
@@ -404,8 +415,13 @@ class IwBot:
 
         if not summary:
             summary.add("виправлена вікіфікація")
+
         # Do additional replacements
+        # shorten [[Page|Pages]] to [[Page]]s
         new_text = re.sub(r"\[\[([^|\d]+)\|\1([^\W\d]*)]]", r"[[\1]]\2", new_text)
+
+        # shorten [[Page 1|Page 1]] to [[Page 1]] (need to do it separately because numbers do not stick)
+        new_text = re.sub(r"\[\[([^|]+)\|\1]]", r"[[\1]]", new_text)
         try: 
             update_page(page, new_text, ", ".join(summary))
         except pywikibot.exceptions.OtherPageSaveError as e:
@@ -663,7 +679,7 @@ def list_problem_pages():
         for title in titles:
             yield pywikibot.Page(SITE, title)
 
-    for page in SITE.search("insource:/\<!-- Проблема вікіфікації/"):
+    for page in SITE.search(r"insource:/\<!-- Проблема вікіфікації/"):
         if page.title() not in titles:
             yield page
 
@@ -671,7 +687,7 @@ def list_problem_pages():
 PROJECTS = dict(
     anime=dict(
         page='Вікіпедія:Проєкт:Аніме та манґа',
-        pattern="Вікіпроєкт:Аніме та манґа",
+        pattern="Вікіпроєкт:Аніме та манґа|В:атм",
     ),
     astro=dict(
         page='Вікіпедія:Проєкт:Астрономія',

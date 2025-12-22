@@ -1,3 +1,5 @@
 mwparserfromhell
 pywikibot
 diff-match-patch
+tqdm
+icecream

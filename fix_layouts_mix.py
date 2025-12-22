@@ -1,16 +1,30 @@
 import sys
 import re
 from functools import partial
+import time
 
 import pywikibot
 from pywikibot.xmlreader import XmlDump
 import mwparserfromhell
 
+
 def main():
     arg = sys.argv[1]
     if arg.endswith('.bz2'):
-        for p in iter_mixed(arg):
-            print(p)
+        mixes_stat = []
+        for page in iter_mixed_pages(arg, frompage='Равенна – Сан-Боніфаціо'):
+            nt = fix_page_text(page.text)
+            mixes = set(re.findall(mixed_re, page.text, re.I))
+            mixes = mixes - TO_KEEP
+            if mixes:
+                mixes_stat.append(('[[:' + page.title + ']]', ', '.join(mixes)))
+            if nt == page.text:
+                continue
+            fix_page(page.title)
+            print()
+        # for p in iter_mixed(arg):
+        #    print(p)
+        print_wikitable(mixes_stat)
     elif arg.endswith('.txt'):
         with open(arg) as f:
             for p in f:
@@ -36,111 +50,122 @@ PRE_FIXES = [
     (r'([^&])nbsp;', r'\1&nbsp;'),
     (r'&nbsp([^;])', r'&nbsp;\1'),
     (r'cт\.', r'ст.'),
+    (r'([IVXLCDM])стол', r'\1 стол'),
+
+    (r'\{\{[Ff]АрміяУНР', r'{{F АрміяУНР'),
+    (r'\{\{[Ff]ДБР', r'{{F ДБР'),
+    (r'\{\{[Ff]ДПСУ', r'{{F ДПСУ'),
+    (r'\{\{[Ff]ДивізіяГаличина', r'{{F ДивізіяГаличина'),
+    (r'\{\{[Ff]Карпатська', r'{{F Карпатська'),
+    (r'\{\{[Ff]МВС', r'{{F МВС'),
+    (r'\{\{[Ff]МОУ', r'{{F МОУ'),
+    (r'\{\{[Ff]МУ', r'{{F МУ'),
+    (r'\{\{[Ff]НПУ', r'{{F НПУ'),
+    (r'\{\{[Ff]ППУ', r'{{F ППУ'),
+    (r'\{\{[Ff]ПС', r'{{F ПС'),
+    (r'\{\{[Ff]ПСМОП', r'{{F ПСМОП'),
+    (r'\{\{[Ff]ПСПОП', r'{{F ПСПОП'),
+    (r'\{\{[Ff]ПУ', r'{{F ПУ'),
+    (r'\{\{[Ff]СБУ', r'{{F СБУ'),
+    (r'\{\{[Ff]СВ', r'{{F СВ'),
+    (r'\{\{[Ff]СЗР', r'{{F СЗР'),
+    (r'\{\{[Ff]СП', r'{{F СП'),
+    (r'\{\{[Ff]ССО', r'{{F ССО'),
+    (r'\{\{[Ff]УГА', r'{{F УГА'),
+    (r'\{\{[Ff]УДО', r'{{F УДО'),
+    (r'\{\{[Ff]УСС', r'{{F УСС'),
+    (r'\{\{[Ii]nІНЖ', r'{{In ІНЖ'),
+    (r'\{\{[Ii]nІнж', r'{{In Інж'),
+    (r'\{\{[Ii]nАА', r'{{In АА'),
+    (r'\{\{[Ii]nАВТ', r'{{In АВТ'),
+    (r'\{\{[Ii]nАРТ', r'{{In АРТ'),
+    (r'\{\{[Ii]nАрт', r'{{In Арт'),
+    (r'\{\{[Ii]nБТрО', r'{{In БТрО'),
+    (r'\{\{[Ii]nВДВ', r'{{In ВДВ'),
+    (r'\{\{[Ii]nВСП', r'{{In ВСП'),
+    (r'\{\{[Ii]nВТрО', r'{{In ВТрО'),
+    (r'\{\{[Ii]nГП', r'{{In ГП'),
+    (r'\{\{[Ii]nДШВ', r'{{In ДШВ'),
+    (r'\{\{[Ii]nЗВЯ', r'{{In ЗВЯ'),
+    (r'\{\{[Ii]nЗРВ', r'{{In ЗРВ'),
+    (r'\{\{[Ii]nМЕХ', r'{{In МЕХ'),
+    (r'\{\{[Ii]nМП', r'{{In МП'),
+    (r'\{\{[Ii]nМС', r'{{In МС'),
+    (r'\{\{[Ii]nМУ', r'{{In МУ'),
+    (r'\{\{[Ii]nПВ', r'{{In ПВ'),
+    (r'\{\{[Ii]nППО', r'{{In ППО'),
+    (r'\{\{[Ii]nРЕБ', r'{{In РЕБ'),
+    (r'\{\{[Ii]nРОЗ', r'{{In РОЗ'),
+    (r'\{\{[Ii]nРТВ', r'{{In РТВ'),
+    (r'\{\{[Ii]nТВ', r'{{In ТВ'),
+    (r'\{\{[Ii]nРХБ', r'{{In РХБ'),
+    (r'\{\{[Ii]nСпП', r'{{In СпП'),
+    (r'\{\{[Ii]nТАН', r'{{In ТАН'),
+    (r'\{\{[fF]Британська', r'{{F Британська'),
+    (r'\{\{[fF]Бундесвер', r'{{F Бундесвер'),
+    (r'\{\{[fF]ВВ', r'{{F ВВ'),
+    (r'\{\{[fF]ВДВ', r'{{F ВДВ'),
+    (r'\{\{[fF]ВМС', r'{{F ВМС'),
+    (r'\{\{[fF]ВМФ', r'{{F ВМФ'),
+    (r'\{\{[fF]ВПС', r'{{F ВПС'),
+    (r'\{\{[fF]ВСП', r'{{F ВСП'),
+    (r'\{\{[fF]Ваффен', r'{{F Ваффен'),
+    (r'\{\{[fF]Вермахт', r'{{F Вермахт'),
+    (r'\{\{[fF]ГУР', r'{{F ГУР'),
+    (r'\{\{[fF]ГУР', r'{{F ГУР'),
+    (r'\{\{[fF]ДСНС', r'{{F ДСНС'),
+    (r'\{\{[fF]ДССЗЗІ', r'{{F ДССЗЗІ'),
+    (r'\{\{[fF]ДССТ', r'{{F ДССТ'),
+    (r'\{\{[fF]ДШВ', r'{{F ДШВ'),
+    (r'\{\{[fF]ЗРВ', r'{{F ЗРВ'),
+    (r'\{\{[fF]ЗС', r'{{F ЗС'),
+    (r'\{\{[fF]ЗСУ', r'{{F ЗСУ'),
+    (r'\{\{[fF]Люфтваффе', r'{{F Люфтваффе'),
+    (r'\{\{[fF]Райхсгеер', r'{{F Райхсгеер'),
+    (r'\{\{[fF]Рейхсхеер', r'{{F Райхсгеер'),
+    (r'\{\{[fF]Рейхсвер', r'{{F Рейхсвер'),
+    (r'\{\{[fF]СБС', r'{{F СБС'),
+    (r'\{\{[fF]ТрО', r'{{F ТрО'),
+    (r'\{\{[fF]УНА', r'{{F УНА'),
+
+    (r'СуперWASP', r'SuperWASP'),
 ]
 
 EXCEPTION_AREAS = [
-    r'\{\{(F|In).*?\}\}', # weird templates
     r'[КФТСЛ]р?[a-h]?x?[a-h][1-8]', # chess
     r'\[\[(?:Файл|File):.*?\]\]',
     r'(?:Файл|File):.*?\|',
     r'http[^ \|\]\}]+',
+    r'\{\{fullurl[^\}]+',
     r'^.*\.(jpg|jpeg|png|svg|tiff?)',
     r'%[A-Z0-9]{2}', # URLencoding
 ]
 
-TO_KEEP = '''
-AVтограф
-2SLБ
-3SLBФ
-3SLБ
-DЦ
-Dруга Ріка
-FANтастика
-Flёur
-FМВС
-InВДВ
-InМЕХ
-KaZaнтип
-KaZaнтип
-KoЯN
-KoЯn
-Lюk
-Lюk-дует
-Lюк
-MEGAКАВА
-Megaкава
-NOνA
-NЭНСИ
-Pianoбой
-RECвізити
-ReФорматЦія
-RЕФLEKSIЯ
-Starперці
-Superнянь
-Tvій
-Ukraїner
-Uлія
-Vavёrka
-Vася
-Vмакс
-Wideнь
-Zалупа
-Zаникай
-Zомбі
-Zоряна
-dsРНК
-ssРНК
-ΜTorrent
-ΦX174
-ΦX174
-ΦX174
-ЄльціUA
-АрміяInform
-Арміяinform
-БраZерс
-Вниz
-ВолиньPost
-ГАМКA
-ГАМКB
-ГАМКC
-ГОГОЛЬFEST
-ГогольFest
-Гогольfest
-ДМ-SLБ
-Дзядuк
-Духless
-ЖАRА
-КАZАНТИП
-КримSOS
-ЛжеNostradamus
-Лорd
-ЛітераDYPA
-МакSим
-Модель ΛCDM
-МікрOFFONна
-НаCLICKай
-ПоLOVEинки
-СкруDG
-СловоUA
-Снjпъ
-СуперWASP
-ТаблоID
-УкрFace
-УкраїнSKA
-ФлайzZzа
-ШELTER+
-ШАNA
-ШОУМАSТГОУОН
-ШоумаSтгоуон
-Яndex
-еXтра
-мікроQR
-нароDJення
-'''.splitlines()
-
-
-
 site = pywikibot.Site('uk', 'wikipedia')
+
+def colored(text):
+    return re.sub(r'([a-zA-Z])', r'\033[94m\1\033[0m', text)
+
+
+def print_wikitable(rows):
+    if not rows:
+        print("no mixes?!?")
+        return
+    print('{| class="wikitable sortable"')
+    print('! ' + " !! ".join(['?'] * len(rows[0])))
+    for row in rows:
+        print('|-')
+        print('| ' + ' || '.join(row))
+    print('|}')
+
+allowedPage = pywikibot.Page(site, 'Вікіпедія:Завдання для ботів/Суміш розкладок/Дозволені')
+TO_KEEP = {w[2:] for w in allowedPage.text.splitlines() if w.startswith('* ')}
+print('\n'.join(colored(l) for l in TO_KEEP))
+
+def iter_mixed_titles(dump_filename):
+    for page in XmlDump(dump_filename).parse():
+        if len(find_mixes(page.title)) > 0:
+           yield page.title
 
 def iter_mixed(dump_filename):
     i = 0
@@ -150,6 +175,22 @@ def iter_mixed(dump_filename):
             print('\033[K\r', i, page.title, file=sys.stderr, end='')
 
         yield from find_mixes(page.text)
+
+def iter_mixed_pages(dump_filename, frompage=None):
+    i = 0
+    skip = bool(frompage)
+    for page in XmlDump(dump_filename).parse():
+        if frompage == page.title:
+            skip = False
+        if skip:
+            continue
+        i += 1
+        if i % 123 == 0:
+            print('\033[K\r', i, page.title, file=sys.stderr, end='')
+
+        if len(find_mixes(page.text)) > 0:
+            yield page
+
 
 def find_mixes(text):
     return re.findall(mixed_re, text, re.I)
@@ -188,12 +229,19 @@ def detect_script(word):
 
     return lambda x: x
 
+
 from iw import update_page
-def fix_page(pagename):
-    print('\n\t =', pagename, '=')
-    page = pywikibot.Page(site, pagename)
-    if '/Архів' in page.title():
+def fix_page(title):
+    print('\n\t =', title, '=')
+    page = pywikibot.Page(site, title)
+    if '/Архів' in title:
         print('Архів, пропускаємо')
+        return
+    if title.startswith('MediaWiki:') and title.endswith('.js'):
+        print('Скрипт, пропускаємо')
+        return
+    if title.startswith('Модуль:'):
+        print('Модуль, пропускаємо')
         return
     if len(page.text) > 300000:
         print('Сторінка задовга')
@@ -206,24 +254,27 @@ def fix_page(pagename):
     new_text = fix_page_text(page.text)
     try:
         update_page(page, new_text, 'Виправлена суміш розкладок')
-    except pywikibot.exceptions.LockedPageError as e:
+    except (pywikibot.exceptions.OtherPageSaveError, pywikibot.exceptions.LockedPageError) as e:
         print(e)
+    except pywikibot.exceptions.ServerError as e:
+        print(e)
+        time.sleep(10.0)
 
 def fix_page_text(text):
     new_text = text
     for fix_from, fix_to in PRE_FIXES:
         new_text = re.sub(fix_from, fix_to, new_text)
-    new_text = process_text(new_text, mixed_re, EXCEPTION_AREAS, fix_word)
+    new_text = process_text(new_text, mixed_re, fix_word)
     if new_text != text: 
         # Do additional replacements
         new_text = re.sub(r"\[\[([^|\d]+)\|\1([^\W\d]*)]]", r"[[\1]]\2", new_text)
 
     return new_text
 
-def process_text(text, reMix, exception_areas, func):
+def process_text(text, reMix, func):
     for match in re.finditer(reMix, text, flags=re.I | re.M):
         inside_exception = False
-        for exception in exception_areas:
+        for exception in EXCEPTION_AREAS:
             for exception_match in re.finditer(exception, text, flags = re.I | re.M):
                 if (match.start() >= exception_match.start() and match.start() < exception_match.end()) or (match.end() > exception_match.start() and match.end() <= exception_match.end()):
                     inside_exception = True
@@ -244,13 +295,6 @@ def latinize(word):
         str.maketrans(CYRILLIC_HOMOPGRAPHS, LATIN_HOMOGRAPHS)
     )
 
-
-def colored(text):
-    text = re.sub('^([a-z])', r'\033[94m\1', text, 0, re.I)
-    text = re.sub(f'^([{CYR}])', r'\033[0m\1', text, 0, re.I)
-    text = re.sub(f'([a-z])([{CYR}])', r'\1\033[0m\2', text, 0, re.I)
-    text = re.sub(f'([{CYR}])([a-z])', r'\1\033[94m\2', text, 0, re.I)
-    return text + '\033[0m'
 
 def count_re(pattern, text):
     return len(re.findall(pattern, text, re.I))
@@ -317,3 +361,7 @@ def test_funny():
     expected = 'енергія, необхідна для здійснення вивертання конформації відносно центра інверсії.'
     assert fixed == expected
 
+def test_link():
+    page = '<ref>[http://vuzlib.com.ua/articles/book/14359-Sі_maslov_formuvannja_osobist/1.html ''Ємчук О.'' С. І. МАСЛОВ: ФОРМУВАННЯ ОСОБИСТОСТІ ВЧЕНОГО] {{Webarchive|url=https://web.archive.org/web/20161221235602/http://vuzlib.com.ua/articles/book/14359-Sі_maslov_formuvannja_osobist/1.html |date=21 грудня 2016 }}Тут же детально описаний родовід.'
+    fixed = fix_page_text(page)
+    assert fixed == page # should not change

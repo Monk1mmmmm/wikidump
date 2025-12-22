@@ -1,3 +1,4 @@
+import csv
 import sys
 import re
 from itertools import islice
@@ -11,8 +12,38 @@ def main():
     # search_report(iter_pages(arg), sys.argv[2])
     # comments_report(iter_pages(arg))
     # mixed_names_report(iter_pages(arg))
-    sections_report(iter_pages(arg))
+    # sections_report(iter_pages(arg))
+    words_report(iter_pages(arg))
 
+
+def words_report(pages):
+    words_counts = Counter()
+
+    for page in pages:
+        if (page.ns != '0') or page.isredirect:
+            continue
+        try:
+            text = mwparserfromhell.parse(page.text).strip_code()
+        except Exception as e:
+            print(page.title, e)
+            continue
+        # Ukrainian: 
+ 
+        # text = text.replace('\u0301', '') # remove accents
+        # page_words = re.findall(
+        #     r'[абвгґдеєжзиіїйклмнопрстуфхцчшщьюя'
+        #     r'АБВГҐДЕЄЖЗИІЇЙКЛМНОПРСТУФХЦЧШЩЬЮЯ’\'-]+',
+        #     text
+        # )
+         
+        # Any language:
+        page_words = re.findall(r'\b[^\W\d]+\b', text)
+ 
+        words_counts.update(x.lower() for x in page_words)
+
+    csvwriter = csv.writer(sys.stdout)
+    for item in words_counts.most_common():
+        csvwriter.writerow(item)
 
 def sections_report(pages):
     sections = defaultdict(list)

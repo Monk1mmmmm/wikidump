@@ -6,6 +6,8 @@ For every added category, check which pages are in en version of the category,
 and add all the existing uk pages to that category.
 '''
 import sys
+from collections import defaultdict
+from itertools import islice
 
 import pywikibot
 
@@ -13,6 +15,7 @@ def main():
     add_cats(sys.argv[1], sys.argv[2])
 
 site = pywikibot.Site('uk', 'wikipedia')
+
 
 def search_category_articles(category, out, prefix = '', depth=2):
     t = category.title(with_ns=False)
@@ -25,13 +28,7 @@ def search_category_articles(category, out, prefix = '', depth=2):
 
 def translate_category(pagename, uk_title):
     print('Translate category', pagename, uk_title)
-    if isprefixed(uk_title,
-        'Категорія:Модуль',
-        'Категорія:Вікіпедія:',
-        'Категорія:Шаблон',
-        'Категорія:Сторінки, що',
-        'Категорія:Усі не',
-    ):
+    if ignored(uk_title):
         print("Не перекладаємо категорію", uk_title)
         return
     print("Перекладаємо категорію", pagename, uk_title)
@@ -83,6 +80,8 @@ def get_uk_text(cat):
     for cc in cat.categories():
         uk_version = get_uk_version(cc)
         if uk_version and not uk_version.startswith('Вікіпедія:'):
+            if uk_version.startswith('Category:'):
+                uk_version = uk_version[len('Category:'):]
             uk_text.append(f'[[Категорія:{uk_version}]]')
 
     return '\n'.join(uk_text)
@@ -107,6 +106,18 @@ def get_translation(page, lang):
 def get_uk_version(page):
     return get_translation(page, 'uk')
 
+def ignored(title):
+    return isprefixed(title,
+        'Category:All articles',
+        'Category:Wikipedia articles ',
+        'Category:Articles ',
+        'Категорія:Модуль',
+        'Категорія:Вікіпедія:',
+        'Категорія:Шаблон',
+        'Категорія:Сторінки, що',
+        'Категорія:Усі не',
+    )
+
 def add_cats(lang, pagename):
     page = pywikibot.Page(site, pagename)
     entitle = get_translation(page, lang)
@@ -121,12 +132,9 @@ def add_cats(lang, pagename):
         cats = [pywikibot.Category(site, lang + ':' + enpage.title(with_ns=False))]
     else:
         cats = reversed(list(enpage.categories()))
+
     for cat in cats:
-        if isprefixed(cat.title(),
-                'Category:All articles',
-                'Category:Wikipedia articles ',
-                'Category:Articles ',
-            ):
+        if ignored(cat.title()):
             print("Skip", cat)
             continue
         uk_cat = get_uk_version(cat)

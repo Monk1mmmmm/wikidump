@@ -34,7 +34,7 @@ def main():
     robot.last_problems_update = datetime.now() - PROBLEMS_UPDATE_PERIOD + timedelta(hours=delay)
 
     robot.run_forever()
-    title = 'Користувач:Bunyk/Чернетка'
+    title = 'Рупія Нідерландської Східної Індії'
     robot.process(pywikibot.Page(SITE, title))
 
 
@@ -624,7 +624,7 @@ def get_params(tmpl):
     return uk_title, text, lang.lower(), external_title
 
 
-def update_page(page, new_text, comment):
+def update_page(page, new_text, comment, save=True):
     if page.text == new_text:
         print("Nothing changed, not updating")
         return
@@ -632,7 +632,8 @@ def update_page(page, new_text, comment):
     pywikibot.showDiff(page.text, new_text)
 
     page.text = new_text
-    page.save(comment)
+    if save:
+        page.save(comment)
 
 
 def name_in_list(name, lst):

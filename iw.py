@@ -33,8 +33,8 @@ def main():
         delay = int(sys.argv[1])
     robot.last_problems_update = datetime.now() - PROBLEMS_UPDATE_PERIOD + timedelta(hours=delay)
 
-    robot.run_forever()
-    title = 'Рупія Нідерландської Східної Індії'
+    # robot.run_forever()
+    title = 'Користувач:Bunyk/Чернетка'
     robot.process(pywikibot.Page(SITE, title))
 
 
@@ -423,7 +423,7 @@ class IwBot:
         # shorten [[Page 1|Page 1]] to [[Page 1]] (need to do it separately because numbers do not stick)
         new_text = re.sub(r"\[\[([^|]+)\|\1]]", r"[[\1]]", new_text)
         try: 
-            update_page(page, new_text, ", ".join(summary))
+            update_page(page, new_text, ", ".join(summary), save=True)
         except pywikibot.exceptions.OtherPageSaveError as e:
             if 'Editing restricted by' in str(e):
                 return
@@ -434,7 +434,10 @@ class IwBot:
         """Return string to which template should be replaced, if it should
         Return None or other falsy value otherwise.
         """
-        uk_title, text, lang, external_title = get_params(tmpl)
+        uk_title, text, lang, external_title, quote = get_params(tmpl)
+
+        opening_quote = "«" if quote else ""
+        closing_quote = "»" if quote else ""
 
         if not lang in LANGUAGE_CODES:
             raise IwExc('Мовний код "%s" не підтримується' % lang)
@@ -463,7 +466,7 @@ class IwBot:
                 (here["wikidata_id"] == there["wikidata_id"])
                 or (here["wikidata_id"] == there["redirect_wikidata_id"])
             ):
-                return f"[[{uk_title}|{text}]]"
+                return f"{opening_quote}[[{uk_title}|{text}]]{closing_quote}"
             elif (
                 here["redirect"]
                 and (here["redirect_wikidata_id"] is not None)
@@ -473,7 +476,7 @@ class IwBot:
                 )
             ):  # where we redirect to is bound to their article
                 # return f"[[{here['redirect']}|{text}]]"
-                return f"[[{uk_title}|{text}]]"
+                return f"{opening_quote}[[{uk_title}|{text}]]{closing_quote}"
             else:
                 error_msg = (
                     "Сторінки [[:%s:%s]] та %s пов'язані з різними елементами вікіданих"
@@ -586,6 +589,8 @@ LANGUAGE_MAPPINGS = dict(  # common language code mistakes
 def get_params(tmpl):
     """Return values of params for iw template"""
 
+    quote = False
+
     sstr = lambda v: str(v).strip()
     uk_title, text, lang, external_title = "", "", "", ""
     for p in tmpl.params:
@@ -611,6 +616,8 @@ def get_params(tmpl):
             lang = val
         if name == "є":
             external_title = val
+        if name == "лапки" and val.lower() in ("так", "yes", "true"):
+            quote = True
 
     if not text:
         text = uk_title
@@ -621,7 +628,7 @@ def get_params(tmpl):
 
     lang = LANGUAGE_MAPPINGS.get(lang, lang)
 
-    return uk_title, text, lang.lower(), external_title
+    return uk_title, text, lang.lower(), external_title, quote
 
 
 def update_page(page, new_text, comment, save=True):

@@ -11,11 +11,14 @@ from pywikibot.xmlreader import XmlDump
 def main():
     arg = sys.argv[1]
     if arg.endswith('.bz2'):
+        # for t in iter_mixed_titles(arg):
+        #     print(t)
+        # return
         mixes_stat = []
         top = Counter()
         for page in iter_mixed_pages(arg, frompage=None):
-            # TODO: count without EXCEPTION_AREAS. Replace by ' ' first?
-            mixes = set(re.findall(mixed_re, page.text, re.I))
+            cleaned_text = re.sub('|'.join(EXCEPTION_AREAS), ' ', page.text, flags=re.I)
+            mixes = set(re.findall(mixed_re, cleaned_text, re.I))
             mixes = mixes - TO_KEEP
             nt = fix_page_text(page.text)
             if nt == page.text:
@@ -48,7 +51,6 @@ mixed_re = f'[a-z{CYR}’]*(?:[a-z][{CYR}]|[{CYR}][a-z])[a-z{CYR}’]*'
 
 
 PRE_FIXES = [
-    (r'Самсонova', 'Самсонова'),
     (r'<ref>http://db.ukrcensus.gov.ua/PXWEB2007/ukr/publ_new1/2022/zb_Сhuselnist.pdf</ref>', '{{UKR-ukrstat-2022}}'),
     (r' iн\.', ' ін.'),
     (r' iм\.', ' ім.'),
@@ -57,8 +59,9 @@ PRE_FIXES = [
     (r'&nbsp([^;])', r'&nbsp;\1'),
     (r'cт\.', r'ст.'),
     (r'([IVXLCDM])стол', r'\1 стол'),
-    # (r'([IVXLCDM])ст\b', r'\1 ст'),
+    (r'([IVXLCDM])ст\b', r'\1 ст'),
     (r"п'єдесталs", "п'єдестали"),
+    (r'InКавСРСР', 'InКав СРСР'),
 ]
 
 EXCEPTION_AREAS = [
@@ -91,14 +94,14 @@ print('\n'.join(colored(l) for l in TO_KEEP))
 
 def iter_mixed_titles(dump_filename):
     for page in XmlDump(dump_filename).parse():
-        if len(find_mixes(page.title)) > 0:
+        if len(find_mixes(page.title)) > 0 and not page.isredirect:
            yield page.title
 
 def iter_mixed_pages(dump_filename, frompage=None):
     i = 0
     skip = bool(frompage)
     for page in XmlDump(dump_filename).parse():
-        if not page.title.startswith('Вікіпедія:'):
+        if page.title.startswith('Вікіпедія:'):
             continue
         if '/Архів' in page.title:
             continue
@@ -177,7 +180,7 @@ def fix_page(title):
         print('no mixes')
     new_text = fix_page_text(page.text)
     try:
-        update_page(page, new_text, 'Виправлена суміш розкладок', save=False)
+        update_page(page, new_text, 'Виправлена суміш розкладок', save=True)
     except (pywikibot.exceptions.OtherPageSaveError, pywikibot.exceptions.LockedPageError) as e:
         print(e)
     except pywikibot.exceptions.ServerError as e:

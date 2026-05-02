@@ -2,29 +2,36 @@ import sys
 import re
 from functools import partial
 import time
+from collections import Counter
 
 import pywikibot
 from pywikibot.xmlreader import XmlDump
-import mwparserfromhell
 
 
 def main():
     arg = sys.argv[1]
     if arg.endswith('.bz2'):
+        # for t in iter_mixed_titles(arg):
+        #     print(t)
+        # return
         mixes_stat = []
-        for page in iter_mixed_pages(arg, frompage='Равенна – Сан-Боніфаціо'):
-            nt = fix_page_text(page.text)
-            mixes = set(re.findall(mixed_re, page.text, re.I))
+        top = Counter()
+        for page in iter_mixed_pages(arg, frompage=None):
+            cleaned_text = re.sub('|'.join(EXCEPTION_AREAS), ' ', page.text, flags=re.I)
+            mixes = set(re.findall(mixed_re, cleaned_text, re.I))
             mixes = mixes - TO_KEEP
-            if mixes:
-                mixes_stat.append(('[[:' + page.title + ']]', ', '.join(mixes)))
+            nt = fix_page_text(page.text)
             if nt == page.text:
                 continue
+            if mixes:
+                mixes_stat.append(('[[:' + page.title + ']]', ', '.join(mixes)))
+            top.update(mixes)
             fix_page(page.title)
             print()
-        # for p in iter_mixed(arg):
-        #    print(p)
         print_wikitable(mixes_stat)
+        print('Top:')
+        for w, c in top.most_common(400):
+            print(f'{c:4} {colored(w)}')
     elif arg.endswith('.txt'):
         with open(arg) as f:
             for p in f:
@@ -44,6 +51,7 @@ mixed_re = f'[a-z{CYR}’]*(?:[a-z][{CYR}]|[{CYR}][a-z])[a-z{CYR}’]*'
 
 
 PRE_FIXES = [
+    (r'<ref>http://db.ukrcensus.gov.ua/PXWEB2007/ukr/publ_new1/2022/zb_Сhuselnist.pdf</ref>', '{{UKR-ukrstat-2022}}'),
     (r' iн\.', ' ін.'),
     (r' iм\.', ' ім.'),
     (r'ghfворуч', 'праворуч'),
@@ -51,84 +59,9 @@ PRE_FIXES = [
     (r'&nbsp([^;])', r'&nbsp;\1'),
     (r'cт\.', r'ст.'),
     (r'([IVXLCDM])стол', r'\1 стол'),
-
-    (r'\{\{[Ff]АрміяУНР', r'{{F АрміяУНР'),
-    (r'\{\{[Ff]ДБР', r'{{F ДБР'),
-    (r'\{\{[Ff]ДПСУ', r'{{F ДПСУ'),
-    (r'\{\{[Ff]ДивізіяГаличина', r'{{F ДивізіяГаличина'),
-    (r'\{\{[Ff]Карпатська', r'{{F Карпатська'),
-    (r'\{\{[Ff]МВС', r'{{F МВС'),
-    (r'\{\{[Ff]МОУ', r'{{F МОУ'),
-    (r'\{\{[Ff]МУ', r'{{F МУ'),
-    (r'\{\{[Ff]НПУ', r'{{F НПУ'),
-    (r'\{\{[Ff]ППУ', r'{{F ППУ'),
-    (r'\{\{[Ff]ПС', r'{{F ПС'),
-    (r'\{\{[Ff]ПСМОП', r'{{F ПСМОП'),
-    (r'\{\{[Ff]ПСПОП', r'{{F ПСПОП'),
-    (r'\{\{[Ff]ПУ', r'{{F ПУ'),
-    (r'\{\{[Ff]СБУ', r'{{F СБУ'),
-    (r'\{\{[Ff]СВ', r'{{F СВ'),
-    (r'\{\{[Ff]СЗР', r'{{F СЗР'),
-    (r'\{\{[Ff]СП', r'{{F СП'),
-    (r'\{\{[Ff]ССО', r'{{F ССО'),
-    (r'\{\{[Ff]УГА', r'{{F УГА'),
-    (r'\{\{[Ff]УДО', r'{{F УДО'),
-    (r'\{\{[Ff]УСС', r'{{F УСС'),
-    (r'\{\{[Ii]nІНЖ', r'{{In ІНЖ'),
-    (r'\{\{[Ii]nІнж', r'{{In Інж'),
-    (r'\{\{[Ii]nАА', r'{{In АА'),
-    (r'\{\{[Ii]nАВТ', r'{{In АВТ'),
-    (r'\{\{[Ii]nАРТ', r'{{In АРТ'),
-    (r'\{\{[Ii]nАрт', r'{{In Арт'),
-    (r'\{\{[Ii]nБТрО', r'{{In БТрО'),
-    (r'\{\{[Ii]nВДВ', r'{{In ВДВ'),
-    (r'\{\{[Ii]nВСП', r'{{In ВСП'),
-    (r'\{\{[Ii]nВТрО', r'{{In ВТрО'),
-    (r'\{\{[Ii]nГП', r'{{In ГП'),
-    (r'\{\{[Ii]nДШВ', r'{{In ДШВ'),
-    (r'\{\{[Ii]nЗВЯ', r'{{In ЗВЯ'),
-    (r'\{\{[Ii]nЗРВ', r'{{In ЗРВ'),
-    (r'\{\{[Ii]nМЕХ', r'{{In МЕХ'),
-    (r'\{\{[Ii]nМП', r'{{In МП'),
-    (r'\{\{[Ii]nМС', r'{{In МС'),
-    (r'\{\{[Ii]nМУ', r'{{In МУ'),
-    (r'\{\{[Ii]nПВ', r'{{In ПВ'),
-    (r'\{\{[Ii]nППО', r'{{In ППО'),
-    (r'\{\{[Ii]nРЕБ', r'{{In РЕБ'),
-    (r'\{\{[Ii]nРОЗ', r'{{In РОЗ'),
-    (r'\{\{[Ii]nРТВ', r'{{In РТВ'),
-    (r'\{\{[Ii]nТВ', r'{{In ТВ'),
-    (r'\{\{[Ii]nРХБ', r'{{In РХБ'),
-    (r'\{\{[Ii]nСпП', r'{{In СпП'),
-    (r'\{\{[Ii]nТАН', r'{{In ТАН'),
-    (r'\{\{[fF]Британська', r'{{F Британська'),
-    (r'\{\{[fF]Бундесвер', r'{{F Бундесвер'),
-    (r'\{\{[fF]ВВ', r'{{F ВВ'),
-    (r'\{\{[fF]ВДВ', r'{{F ВДВ'),
-    (r'\{\{[fF]ВМС', r'{{F ВМС'),
-    (r'\{\{[fF]ВМФ', r'{{F ВМФ'),
-    (r'\{\{[fF]ВПС', r'{{F ВПС'),
-    (r'\{\{[fF]ВСП', r'{{F ВСП'),
-    (r'\{\{[fF]Ваффен', r'{{F Ваффен'),
-    (r'\{\{[fF]Вермахт', r'{{F Вермахт'),
-    (r'\{\{[fF]ГУР', r'{{F ГУР'),
-    (r'\{\{[fF]ГУР', r'{{F ГУР'),
-    (r'\{\{[fF]ДСНС', r'{{F ДСНС'),
-    (r'\{\{[fF]ДССЗЗІ', r'{{F ДССЗЗІ'),
-    (r'\{\{[fF]ДССТ', r'{{F ДССТ'),
-    (r'\{\{[fF]ДШВ', r'{{F ДШВ'),
-    (r'\{\{[fF]ЗРВ', r'{{F ЗРВ'),
-    (r'\{\{[fF]ЗС', r'{{F ЗС'),
-    (r'\{\{[fF]ЗСУ', r'{{F ЗСУ'),
-    (r'\{\{[fF]Люфтваффе', r'{{F Люфтваффе'),
-    (r'\{\{[fF]Райхсгеер', r'{{F Райхсгеер'),
-    (r'\{\{[fF]Рейхсхеер', r'{{F Райхсгеер'),
-    (r'\{\{[fF]Рейхсвер', r'{{F Рейхсвер'),
-    (r'\{\{[fF]СБС', r'{{F СБС'),
-    (r'\{\{[fF]ТрО', r'{{F ТрО'),
-    (r'\{\{[fF]УНА', r'{{F УНА'),
-
-    (r'СуперWASP', r'SuperWASP'),
+    (r'([IVXLCDM])ст\b', r'\1 ст'),
+    (r"п'єдесталs", "п'єдестали"),
+    (r'InКавСРСР', 'InКав СРСР'),
 ]
 
 EXCEPTION_AREAS = [
@@ -148,9 +81,6 @@ def colored(text):
 
 
 def print_wikitable(rows):
-    if not rows:
-        print("no mixes?!?")
-        return
     print('{| class="wikitable sortable"')
     print('! ' + " !! ".join(['?'] * len(rows[0])))
     for row in rows:
@@ -164,22 +94,19 @@ print('\n'.join(colored(l) for l in TO_KEEP))
 
 def iter_mixed_titles(dump_filename):
     for page in XmlDump(dump_filename).parse():
-        if len(find_mixes(page.title)) > 0:
+        if len(find_mixes(page.title)) > 0 and not page.isredirect:
            yield page.title
-
-def iter_mixed(dump_filename):
-    i = 0
-    for page in XmlDump(dump_filename).parse():
-        i += 1
-        if i % 123 == 0:
-            print('\033[K\r', i, page.title, file=sys.stderr, end='')
-
-        yield from find_mixes(page.text)
 
 def iter_mixed_pages(dump_filename, frompage=None):
     i = 0
     skip = bool(frompage)
     for page in XmlDump(dump_filename).parse():
+        if page.title.startswith('Вікіпедія:'):
+            continue
+        if '/Архів' in page.title:
+            continue
+        if ':Архів' in page.title:
+            continue
         if frompage == page.title:
             skip = False
         if skip:
@@ -201,7 +128,7 @@ def fix_word(word):
     script = detect_script(word)
     new_word = script(word)
     if has_mix(new_word):
-        print('Do not know how to handle:', colored(word))
+        # print('Do not know how to handle:', colored(word))
         return word
     return new_word
 
@@ -253,7 +180,7 @@ def fix_page(title):
         print('no mixes')
     new_text = fix_page_text(page.text)
     try:
-        update_page(page, new_text, 'Виправлена суміш розкладок')
+        update_page(page, new_text, 'Виправлена суміш розкладок', save=True)
     except (pywikibot.exceptions.OtherPageSaveError, pywikibot.exceptions.LockedPageError) as e:
         print(e)
     except pywikibot.exceptions.ServerError as e:
